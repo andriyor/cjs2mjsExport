@@ -1,16 +1,21 @@
-import fs from 'fs';
+import util from 'node:util';
+import fs from 'node:fs';
 
-import { beforeAll, describe, it, expect } from 'vitest';
+import { beforeAll, describe, it, expect, afterAll } from 'vitest';
 
 import { migrate } from '../src';
-
 import { prepareTestCases } from './helper';
-// fs.cpSync('example', 'example-untouched', {recursive: true});
+
+const exec = util.promisify(require('node:child_process').exec);
 
 beforeAll(async () => {
   await migrate({
     projectFiles: 'test/test-project/**/*.{tsx,ts}',
   });
+});
+
+afterAll(async () => {
+  await exec('git stash push -- test/test-project');
 });
 
 describe('cjs2mjsExport', () => {
