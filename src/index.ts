@@ -72,7 +72,7 @@ const migrateAndGetExportMap = (sourceFiles: SourceFile[]) => {
             exportInFile.push(exportedName);
             const parentOfBinaryExpr = parentOfProp.getParent();
             if (Node.isExpressionStatement(parentOfBinaryExpr)) {
-              parentOfBinaryExpr.remove();
+              return parentOfBinaryExpr.remove();
             }
           }
         }
@@ -181,6 +181,6 @@ export const migrate = (config: Config) => {
   return project.save();
 };
 
-migrate({
-  projectFiles: 'test/test-project/case2/*.{tsx,ts,js}',
-});
+// migrate({
+//   projectFiles: 'test/test-project/case2/*.{tsx,ts,js}',
+// });
