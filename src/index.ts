@@ -187,18 +187,6 @@ const checkAndFixImport = ({
           const importClause = parent.getImportClauseOrThrow();
           const namedBindings = importClause.getNamedBindings();
 
-          // import { sum } from './sum';
-          if (Node.isNamedImports(namedBindings)) {
-            const namedImports = importClause.getNamedImports();
-            const namedImportsText = namedImports.map((namedImport) => namedImport.getText());
-            const isImportsIncluded = namedImportsText.every((importText) =>
-              fileCJSExportNamesMap[fileUsageMapKey].exportedVarFromFile.includes(importText),
-            );
-            if (isImportsIncluded) {
-              console.log('all imports included');
-            }
-          }
-
           // import * as actions from './subscriptions';
           if (Node.isNamespaceImport(namedBindings)) {
             const aliasName = namedBindings.getName();
