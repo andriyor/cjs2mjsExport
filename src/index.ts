@@ -11,11 +11,7 @@ const getTsConfig = () => {
   }
 };
 
-const getResolvedFileName = (
-  moduleName: string,
-  containingFile: string,
-  tsOptions: CompilerOptions
-) => {
+const getResolvedFileName = (moduleName: string, containingFile: string, tsOptions: CompilerOptions) => {
   const resolvedModuleName = ts.resolveModuleName(moduleName, containingFile, tsOptions, ts.sys);
   if (resolvedModuleName.resolvedModule?.resolvedFileName) {
     if (resolvedModuleName.resolvedModule.resolvedFileName.includes(process.cwd())) {
@@ -85,32 +81,11 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
     const filePath = sourceFile.getFilePath();
     const exportInFile: string[] = [];
 
-    if (
-      [
-        'sagas/index.ts',
-        'bundled-subscription/index.ts',
-        'reducers/orders/index.js',
-        'reducers/otp/index.js',
-        'reducers/payfac-profile/index.js',
-        'reducers/promotions/index.js',
-        'reducers/prospero/index.js',
-        'reducers/rad/index.js',
-        'reducers/receipts/index.js',
-        'reducers/reporting/index.js',
-        'reducers/settlement/index.js',
-        'reducers/store/index.js',
-        'reducers/stores-with-domain-attributes/index.js',
-        'reducers/terminals/index.js',
-        'reducers/transactions-aggregate/index.js',
-        'reducers/twilio/index.js',
-        'reducers/upload/index.js',
-        'reducers/website/index.js',
-        'reducers/website-account/index.js',
-        'src/sagas/config/index.js',
-      ].some((path) => filePath.includes(path))
-    ) {
+    if (['src/sagas/config/index.js'].some((path) => filePath.includes(path))) {
       continue;
     }
+
+    console.log(sourceFile.getFilePath());
 
     sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression).forEach((node) => {
       if (node.getFullText().trim() === 'module.exports') {
@@ -129,7 +104,6 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
           }
         }
 
-
         if (Node.isBinaryExpression(parent)) {
           const parentOfBinaryExpr = parent.getParent();
           if (Node.isExpressionStatement(parentOfBinaryExpr)) {
@@ -137,21 +111,20 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
 
             // module.exports = {
             if (Node.isObjectLiteralExpression(rightSide)) {
-              const properties=  rightSide.getProperties()
-              const isAllShorthand = properties.every(property => Node.isShorthandPropertyAssignment(property))
+              const properties = rightSide.getProperties();
+              const isAllShorthand = properties.every((property) => Node.isShorthandPropertyAssignment(property));
               if (isAllShorthand) {
                 // module.exports = {sum}
                 for (const property of properties) {
                   if (Node.isShorthandPropertyAssignment(property)) {
                     exportInFile.push(property.getText());
-                    const referencedSymbols= property.findReferences()
+                    const referencedSymbols = property.findReferences();
 
                     for (const referencedSymbol of referencedSymbols) {
                       for (const reference of referencedSymbol.getReferences()) {
                         const parent = reference.getNode().getParentOrThrow().getParentOrThrow().getParentOrThrow();
                         if (Node.isVariableStatement(parent)) {
-                          parent.setIsExported(true)
-
+                          parent.setIsExported(true);
                         }
                       }
                     }
@@ -172,13 +145,13 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
             // module.exports = sum;
             if (Node.isIdentifier(rightSide)) {
               exportInFile.push(rightSide.getText());
-              const referencedSymbols= rightSide.findReferences()
+              const referencedSymbols = rightSide.findReferences();
 
               for (const referencedSymbol of referencedSymbols) {
                 for (const reference of referencedSymbol.getReferences()) {
                   const parent = reference.getNode().getParentOrThrow().getParentOrThrow().getParentOrThrow();
                   if (Node.isVariableStatement(parent)) {
-                    parent.setIsExported(true)
+                    parent.setIsExported(true);
                     return parentOfBinaryExpr.remove();
                   }
                 }
@@ -222,32 +195,14 @@ const checkAndFixImport = ({
     if (fileExportNamesMap[fileUsageMapKey]) {
       for (const fileImportKeyElement in fileUsageMap[fileUsageMapKey]) {
         const personFile = project.getSourceFile(fileImportKeyElement);
-        console.log('fileImportKeyElement');
-        console.log(fileImportKeyElement);
-        const statement = fileImportKeyElement ===  '/Users/aoriekhov/git/work/poynt/mercury/src/store/sagas/business/index.ts' && fileUsageMapKey === '/Users/aoriekhov/git/work/poynt/mercury/src/schemas/business/index.js';
-
-        if (statement) {
-          console.log('schemas/business personFile', personFile);
-        }
         if (personFile) {
           const node = personFile.getDescendantAtPos(fileUsageMap[fileUsageMapKey][fileImportKeyElement]);
           if (node) {
             const parent = node.getParent();
-            if (statement) {
-              console.log('schemas/business node');
-            }
             if (Node.isImportDeclaration(parent)) {
               const importClause = parent.getImportClause();
-              if (statement) {
-                console.log('schemas/business isImportDeclaration');
-              }
               if (importClause) {
                 const namedBindings = importClause.getNamedBindings();
-                if (statement) {
-                  console.log('schemas/business dddddddddddd');
-                  console.log(namedBindings?.getKindName());
-                  console.log(namedBindings?.getFullText());
-                }
 
                 // import { sum } from './sum';
                 if (Node.isNamedImports(namedBindings)) {
@@ -271,10 +226,6 @@ const checkAndFixImport = ({
 
                 // import subtract from './subtract';
                 if (namedBindings === undefined) {
-                  console.log('fileUsageMapKey');
-                  console.log(fileUsageMapKey);
-                  console.log('fileExportNamesMap[fileUsageMapKey]');
-                  console.log(fileExportNamesMap[fileUsageMapKey]);
                   if (fileExportNamesMap[fileUsageMapKey] && fileExportNamesMap[fileUsageMapKey].length === 1) {
                     importClause.replaceWithText(`{ ${fileExportNamesMap[fileUsageMapKey][0]} }`);
                   }
@@ -294,7 +245,7 @@ export const migrate = (config: Config) => {
   });
   // project.emitSync();
   const sourceFiles = project.getSourceFiles(config.projectFiles);
-  console.log(sourceFiles.map(file => file.getFilePath()));
+  console.log(sourceFiles.map((file) => file.getFilePath()));
 
   const fileUsageMap = getFileUsageMap(sourceFiles);
   console.log('fileUsageMap');
