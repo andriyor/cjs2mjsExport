@@ -226,8 +226,14 @@ const checkAndFixImport = ({
 
                 // import subtract from './subtract';
                 if (namedBindings === undefined) {
+                  const importName = importClause.getText();
                   if (fileExportNamesMap[fileUsageMapKey] && fileExportNamesMap[fileUsageMapKey].length === 1) {
-                    importClause.replaceWithText(`{ ${fileExportNamesMap[fileUsageMapKey][0]} }`);
+                    const exportedName = fileExportNamesMap[fileUsageMapKey][0];
+                    if (exportedName === importName) {
+                      importClause.replaceWithText(`{ ${fileExportNamesMap[fileUsageMapKey][0]} }`);
+                    } else {
+                      importClause.replaceWithText(`{ ${fileExportNamesMap[fileUsageMapKey][0]} as ${importName} }`);
+                    }
                   }
                 }
               }
@@ -263,10 +269,10 @@ export const migrate = (config: Config) => {
   return project.save();
 };
 
-migrate({
-  projectFiles: 'src/**/*.{tsx,ts,js}',
-});
+// migrate({
+//   projectFiles: 'src/**/*.{tsx,ts,js}',
+// });
 
 // migrate({
-//   projectFiles: 'test/test-project/case4shorthand/*.{tsx,ts,js}',
+//   projectFiles: 'test/test-project/case2/*.{tsx,ts,js}',
 // });
