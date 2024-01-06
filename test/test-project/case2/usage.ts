@@ -1,3 +1,3 @@
-import * as actions from './subscriptions';
+import * as actions from './news-subscriptions';
 
 console.log(actions.GET_SUBSCRIPTIONS_REQUEST);

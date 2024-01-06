@@ -1,5 +1,6 @@
 import { Project, Node, SyntaxKind, ts, SourceFile } from 'ts-morph';
 import cliProgress from 'cli-progress';
+import { camelCase } from 'string-ts';
 
 const getTsConfig = () => {
   const tsConfigFilePath = ts.findConfigFile(process.cwd(), ts.sys.fileExists);
@@ -66,7 +67,6 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
   const exportMap: fileExportNamesMap = {};
   for (const sourceFile of sourceFiles) {
     const filePath = sourceFile.getFilePath();
-    console.log(filePath);
     const exportInFile: string[] = [];
 
     sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression).forEach((node) => {
@@ -93,8 +93,9 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
           if (Node.isExpressionStatement(parentOfBinaryExpr)) {
             const extText = parent.getRight().getFullText();
             const fileName = getFileName(sourceFile.getBaseName());
-            sourceFile.insertStatements(0, `export const ${fileName} = ${extText}`);
-            exportInFile.push(fileName);
+            const camelCasedName = camelCase(fileName);
+            sourceFile.insertStatements(0, `export const ${camelCasedName} = ${extText}`);
+            exportInFile.push(camelCasedName);
             parentOfBinaryExpr.remove();
           }
         }
@@ -200,6 +201,6 @@ export const migrate = (config: Config) => {
 //   projectFiles: 'src/**/*.{tsx,ts,js}',
 // });
 
-migrate({
-  projectFiles: 'test/test-project/case1/**/*.{tsx,ts,js}',
-});
+// migrate({
+//   projectFiles: 'test/test-project/case1/**/*.{tsx,ts,js}',
+// });
