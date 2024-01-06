@@ -15,7 +15,7 @@ type Config = {
 
 type FileUsagesMap = Record<string, Record<string, StringLiteral>>;
 
-const getFileUsageMap = (sourceFiles: SourceFile[]) => {
+const getAllFilesUsagesMap = (sourceFiles: SourceFile[]) => {
   const fileUsages: FileUsagesMap = {};
   const tsConfig = getTsConfig();
 
@@ -53,7 +53,7 @@ type FileExportNamesMap = Record<
   string,
   {
     exportedVarFromFile: string[];
-    isDefaultExport: boolean;
+    isFileUseDefaultExport: boolean;
   }
 >;
 
@@ -62,7 +62,7 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
   for (const sourceFile of sourceFiles) {
     const filePath = sourceFile.getFilePath();
     exportMap[filePath] = {
-      isDefaultExport: false,
+      isFileUseDefaultExport: false,
       exportedVarFromFile: [],
     };
     const exportedVarFromFile: string[] = [];
@@ -73,7 +73,7 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
 
         // module.exports.sum = sum;
         if (Node.isPropertyAccessExpression(parent)) {
-          exportMap[filePath].isDefaultExport = false;
+          exportMap[filePath].isFileUseDefaultExport = false;
           const parentOfProp = parent.getParent();
           if (Node.isBinaryExpression(parentOfProp)) {
             const right = parentOfProp.getRight();
@@ -89,7 +89,7 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
         }
 
         if (Node.isBinaryExpression(parent)) {
-          exportMap[filePath].isDefaultExport = true;
+          exportMap[filePath].isFileUseDefaultExport = true;
           const parentOfBinaryExpr = parent.getParent();
           if (Node.isExpressionStatement(parentOfBinaryExpr)) {
             const rightSide = parent.getRight();
@@ -151,20 +151,19 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
       exportMap[filePath].exportedVarFromFile = exportedVarFromFile;
     }
 
-    sourceFile.forEachChild((node) => {
-      if (Node.isVariableStatement(node)) {
-        exportedVarFromFile.forEach((exportName) => {
-          for (const declarations of node.getDeclarations()) {
-            const varName = declarations.getName();
-            if (exportName === varName) {
-              node.setIsExported(true);
-            }
+    sourceFile.getChildrenOfKind(SyntaxKind.VariableStatement).forEach((variableStatement) => {
+      exportedVarFromFile.forEach((exportName) => {
+        for (const declarations of variableStatement.getDeclarations()) {
+          const varName = declarations.getName();
+          if (exportName === varName) {
+            variableStatement.setIsExported(true);
           }
-        });
-      }
+        }
+      });
     });
   }
 
+  // remove path which doesn't have cjs export
   return Object.keys(exportMap)
     .filter((key) => Boolean(exportMap[key].exportedVarFromFile.length))
     .reduce((cur, key) => {
@@ -173,68 +172,59 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
 };
 
 const checkAndFixImport = ({
-  project,
-  fileUsageMap,
-  fileExportNamesMap,
+  allFilesUsagesMap,
+  fileCJSExportNamesMap,
 }: {
-  project: Project;
-  fileUsageMap: FileUsagesMap;
-  fileExportNamesMap: FileExportNamesMap;
+  allFilesUsagesMap: FileUsagesMap;
+  fileCJSExportNamesMap: FileExportNamesMap;
 }) => {
-  for (const fileUsageMapKey in fileUsageMap) {
-    if (fileExportNamesMap[fileUsageMapKey]) {
-      for (const fileImportKeyElement in fileUsageMap[fileUsageMapKey]) {
-        const personFile = project.getSourceFile(fileImportKeyElement);
-        if (personFile) {
-          const node = fileUsageMap[fileUsageMapKey][fileImportKeyElement];
-          if (node) {
-            const parent = node.getParent();
-            if (Node.isImportDeclaration(parent)) {
-              const importClause = parent.getImportClause();
-              if (importClause) {
-                const namedBindings = importClause.getNamedBindings();
+  for (const fileUsageMapKey in allFilesUsagesMap) {
+    if (fileCJSExportNamesMap[fileUsageMapKey]) {
+      for (const fileImportKeyElement in allFilesUsagesMap[fileUsageMapKey]) {
+        const node = allFilesUsagesMap[fileUsageMapKey][fileImportKeyElement];
+        const parent = node.getParent();
+        if (Node.isImportDeclaration(parent)) {
+          const importClause = parent.getImportClauseOrThrow();
+          const namedBindings = importClause.getNamedBindings();
 
-                // import { sum } from './sum';
-                if (Node.isNamedImports(namedBindings)) {
-                  const namedImports = importClause.getNamedImports();
-                  const namedImportsText = namedImports.map((namedImport) => namedImport.getText());
-                  const isImportsIncluded = namedImportsText.every((importText) =>
-                    fileExportNamesMap[fileUsageMapKey].exportedVarFromFile.includes(importText),
-                  );
-                  if (isImportsIncluded) {
-                    console.log('all imports included');
-                  }
-                }
+          // import { sum } from './sum';
+          if (Node.isNamedImports(namedBindings)) {
+            const namedImports = importClause.getNamedImports();
+            const namedImportsText = namedImports.map((namedImport) => namedImport.getText());
+            const isImportsIncluded = namedImportsText.every((importText) =>
+              fileCJSExportNamesMap[fileUsageMapKey].exportedVarFromFile.includes(importText),
+            );
+            if (isImportsIncluded) {
+              console.log('all imports included');
+            }
+          }
 
-                // import * as actions from './subscriptions';
-                if (Node.isNamespaceImport(namedBindings)) {
-                  const aliasName = namedBindings.getName();
-                  if (
-                    fileExportNamesMap[fileUsageMapKey] &&
-                    fileExportNamesMap[fileUsageMapKey].exportedVarFromFile.length === 1
-                  ) {
-                    namedBindings.replaceWithText(
-                      `{ ${fileExportNamesMap[fileUsageMapKey].exportedVarFromFile[0]} as ${aliasName} }`,
-                    );
-                  }
-                }
+          // import * as actions from './subscriptions';
+          if (Node.isNamespaceImport(namedBindings)) {
+            const aliasName = namedBindings.getName();
+            if (
+              fileCJSExportNamesMap[fileUsageMapKey] &&
+              fileCJSExportNamesMap[fileUsageMapKey].exportedVarFromFile.length === 1
+            ) {
+              namedBindings.replaceWithText(
+                `{ ${fileCJSExportNamesMap[fileUsageMapKey].exportedVarFromFile[0]} as ${aliasName} }`,
+              );
+            }
+          }
 
-                // import subtract from './subtract';
-                if (namedBindings === undefined) {
-                  if (fileExportNamesMap[fileUsageMapKey]) {
-                    const importName = importClause.getText();
-                    if (fileExportNamesMap[fileUsageMapKey].isDefaultExport) {
-                      const exportedName = fileExportNamesMap[fileUsageMapKey].exportedVarFromFile[0];
-                      if (exportedName === importName) {
-                        importClause.replaceWithText(`{ ${exportedName} }`);
-                      } else {
-                        importClause.replaceWithText(`{ ${exportedName} as ${importName} }`);
-                      }
-                    } else {
-                      importClause.replaceWithText(`* as ${importName}`);
-                    }
-                  }
+          // import subtract from './subtract';
+          if (namedBindings === undefined) {
+            if (fileCJSExportNamesMap[fileUsageMapKey]) {
+              const importName = importClause.getText();
+              if (fileCJSExportNamesMap[fileUsageMapKey].isFileUseDefaultExport) {
+                const exportedName = fileCJSExportNamesMap[fileUsageMapKey].exportedVarFromFile[0];
+                if (exportedName === importName) {
+                  importClause.replaceWithText(`{ ${exportedName} }`);
+                } else {
+                  importClause.replaceWithText(`{ ${exportedName} as ${importName} }`);
                 }
+              } else {
+                importClause.replaceWithText(`* as ${importName}`);
               }
             }
           }
@@ -251,21 +241,20 @@ export const migrate = (config: Config) => {
 
   const sourceFiles = project.getSourceFiles(config.projectFiles);
 
-  const fileUsageMap = getFileUsageMap(sourceFiles);
-  const fileExportNamesMap = migrateAndGetFileExportNamesMap(sourceFiles);
+  const allFilesUsagesMap = getAllFilesUsagesMap(sourceFiles);
+  const fileCJSExportNamesMap = migrateAndGetFileExportNamesMap(sourceFiles);
 
   checkAndFixImport({
-    project,
-    fileUsageMap,
-    fileExportNamesMap,
+    allFilesUsagesMap,
+    fileCJSExportNamesMap,
   });
 
   return project.save();
 };
 
-// migrate({
-//   projectFiles: 'src/**/*.{tsx,ts,js}',
-// });
+migrate({
+  projectFiles: 'src/**/*.{tsx,ts,js}',
+});
 
 // migrate({
 //   projectFiles: 'test/test-project/case9/*.{tsx,ts,js}',
