@@ -12,6 +12,11 @@ export const trimQuotes = (str: string) => {
   return str.slice(1, -1);
 };
 
+export const getFileName = (str: string) => {
+  const index = str.lastIndexOf('.');
+  return str.slice(0, index);
+};
+
 type Config = {
   projectFiles: string;
 };
@@ -58,6 +63,8 @@ const migrateAndGetExportMap = (sourceFiles: SourceFile[]) => {
     sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression).forEach((node) => {
       if (node.getFullText().trim() === 'module.exports') {
         const parent = node.getParent();
+
+        // module.exports.sum = sum;
         if (Node.isPropertyAccessExpression(parent)) {
           const parentOfProp = parent.getParent();
           if (Node.isBinaryExpression(parentOfProp)) {
@@ -67,6 +74,18 @@ const migrateAndGetExportMap = (sourceFiles: SourceFile[]) => {
             if (Node.isExpressionStatement(parentOfBinaryExpr)) {
               parentOfBinaryExpr.remove();
             }
+          }
+        }
+
+        // module.exports = {
+        if (Node.isBinaryExpression(parent)) {
+          const parentOfBinaryExpr = parent.getParent();
+          if (Node.isExpressionStatement(parentOfBinaryExpr)) {
+            const extText = parent.getRight().getFullText();
+            const fileName = getFileName(sourceFile.getBaseName());
+            sourceFile.insertStatements(0, `export const ${fileName} = ${extText}`);
+            exportInFile.push(fileName);
+            parentOfBinaryExpr.remove();
           }
         }
       }
@@ -111,13 +130,26 @@ const checkAndFixImport = ({
           if (Node.isImportDeclaration(parent)) {
             const importClause = parent.getImportClause();
             if (importClause) {
-              const namedImports = importClause.getNamedImports();
-              const namedImportsText = namedImports.map((namedImport) => namedImport.getText());
-              const isImportsIncluded = namedImportsText.every((importText) =>
-                exportMap[fileImportKey].includes(importText),
-              );
-              if (isImportsIncluded) {
-                console.log('all imports included');
+              const namedBindings = importClause.getNamedBindings();
+
+              // import { sum } from './sum';
+              if (Node.isNamedImports(namedBindings)) {
+                const namedImports = importClause.getNamedImports();
+                const namedImportsText = namedImports.map((namedImport) => namedImport.getText());
+                const isImportsIncluded = namedImportsText.every((importText) =>
+                  exportMap[fileImportKey].includes(importText),
+                );
+                if (isImportsIncluded) {
+                  console.log('all imports included');
+                }
+              }
+
+              // import * as actions from './subscriptions';
+              if (Node.isNamespaceImport(namedBindings)) {
+                const aliasName = namedBindings.getName();
+                if (exportMap[fileImportKey].length === 1) {
+                  namedBindings.replaceWithText(`{${exportMap[fileImportKey][0]} as ${aliasName}}`);
+                }
               }
             }
           }
@@ -149,6 +181,6 @@ export const migrate = (config: Config) => {
   return project.save();
 };
 
-// migrate({
-//   projectFiles: 'test/test-project/case1/*.{tsx,ts,js}',
-// });
+migrate({
+  projectFiles: 'test/test-project/case2/*.{tsx,ts,js}',
+});
