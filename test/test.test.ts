@@ -10,7 +10,7 @@ const exec = util.promisify(require('node:child_process').exec);
 
 beforeAll(async () => {
   await migrate({
-    projectFiles: 'test/test-project/**/*.{tsx,ts}',
+    projectFiles: 'test/test-project/**/*.{tsx,ts,js}',
   });
 });
 
