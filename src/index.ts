@@ -69,6 +69,33 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
     const filePath = sourceFile.getFilePath();
     const exportInFile: string[] = [];
 
+    if (
+      [
+        'sagas/index.ts',
+        'bundled-subscription/index.ts',
+        'reducers/orders/index.js',
+        'reducers/otp/index.js',
+        'reducers/payfac-profile/index.js',
+        'reducers/promotions/index.js',
+        'reducers/prospero/index.js',
+        'reducers/rad/index.js',
+        'reducers/receipts/index.js',
+        'reducers/reporting/index.js',
+        'reducers/settlement/index.js',
+        'reducers/store/index.js',
+        'reducers/stores-with-domain-attributes/index.js',
+        'reducers/terminals/index.js',
+        'reducers/transactions-aggregate/index.js',
+        'reducers/twilio/index.js',
+        'reducers/upload/index.js',
+        'reducers/website/index.js',
+        'reducers/website-account/index.js',
+        'src/sagas/config/index.js',
+      ].some((path) => filePath.includes(path))
+    ) {
+      continue;
+    }
+
     sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression).forEach((node) => {
       if (node.getFullText().trim() === 'module.exports') {
         console.log(node.getFullText());
@@ -91,7 +118,7 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
         if (Node.isBinaryExpression(parent)) {
           const parentOfBinaryExpr = parent.getParent();
           if (Node.isExpressionStatement(parentOfBinaryExpr)) {
-            const extText = parent.getRight().getFullText();
+            const extText = parent.getRight().getFullText().trim();
             const fileName = getFileName(sourceFile.getBaseName());
             const camelCasedName = camelCase(fileName);
             sourceFile.insertStatements(0, `export const ${camelCasedName} = ${extText}`);
@@ -201,6 +228,6 @@ export const migrate = (config: Config) => {
 //   projectFiles: 'src/**/*.{tsx,ts,js}',
 // });
 
-// migrate({
-//   projectFiles: 'test/test-project/case1/**/*.{tsx,ts,js}',
-// });
+migrate({
+  projectFiles: 'test/test-project/case2/**/*.{tsx,ts,js}',
+});
