@@ -53,7 +53,7 @@ type FileExportNamesMap = Record<
   string,
   {
     usage: string[];
-    isDefault: boolean;
+    isDefaultExport: boolean;
   }
 >;
 
@@ -62,14 +62,10 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
   for (const sourceFile of sourceFiles) {
     const filePath = sourceFile.getFilePath();
     exportMap[filePath] = {
-      isDefault: false,
+      isDefaultExport: false,
       usage: [],
     };
     const exportInFile: string[] = [];
-
-    if (['src/sagas/config/index.js'].some((path) => filePath.includes(path))) {
-      continue;
-    }
 
     sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression).forEach((node) => {
       if (node.getFullText().trim() === 'module.exports') {
@@ -77,20 +73,23 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
 
         // module.exports.sum = sum;
         if (Node.isPropertyAccessExpression(parent)) {
-          exportMap[filePath].isDefault = false;
+          exportMap[filePath].isDefaultExport = false;
           const parentOfProp = parent.getParent();
           if (Node.isBinaryExpression(parentOfProp)) {
-            const exportedName = parentOfProp.getRight().getFullText().trim();
-            exportInFile.push(exportedName);
-            const parentOfBinaryExpr = parentOfProp.getParent();
-            if (Node.isExpressionStatement(parentOfBinaryExpr)) {
-              return parentOfBinaryExpr.remove();
+            const right = parentOfProp.getRight();
+            if (!Node.isFunctionExpression(right)) {
+              const exportedName = parentOfProp.getRight().getFullText().trim();
+              exportInFile.push(exportedName);
+              const parentOfBinaryExpr = parentOfProp.getParent();
+              if (Node.isExpressionStatement(parentOfBinaryExpr)) {
+                return parentOfBinaryExpr.remove();
+              }
             }
           }
         }
 
         if (Node.isBinaryExpression(parent)) {
-          exportMap[filePath].isDefault = true;
+          exportMap[filePath].isDefaultExport = true;
           const parentOfBinaryExpr = parent.getParent();
           if (Node.isExpressionStatement(parentOfBinaryExpr)) {
             const rightSide = parent.getRight();
@@ -221,7 +220,7 @@ const checkAndFixImport = ({
                 if (namedBindings === undefined) {
                   if (fileExportNamesMap[fileUsageMapKey]) {
                     const importName = importClause.getText();
-                    if (fileExportNamesMap[fileUsageMapKey].isDefault) {
+                    if (fileExportNamesMap[fileUsageMapKey].isDefaultExport) {
                       const exportedName = fileExportNamesMap[fileUsageMapKey].usage[0];
                       if (exportedName === importName) {
                         importClause.replaceWithText(`{ ${exportedName} }`);
@@ -266,5 +265,5 @@ export const migrate = (config: Config) => {
 // });
 
 // migrate({
-//   projectFiles: 'test/test-project/case8/*.{tsx,ts,js}',
+//   projectFiles: 'test/test-project/case9/*.{tsx,ts,js}',
 // });
