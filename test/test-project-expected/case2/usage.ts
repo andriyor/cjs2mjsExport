@@ -1,3 +1,3 @@
-import {subscriptions as actions} from './subscriptions';
+import { newsSubscriptions as actions } from './news-subscriptions';
 
 console.log(actions.GET_SUBSCRIPTIONS_REQUEST);
