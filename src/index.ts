@@ -1,4 +1,5 @@
 import { Project, Node, SyntaxKind, ts, SourceFile } from 'ts-morph';
+import cliProgress from 'cli-progress';
 
 const getTsConfig = () => {
   const tsConfigFilePath = ts.findConfigFile(process.cwd(), ts.sys.fileExists);
@@ -25,18 +26,22 @@ type FilesImports = Record<string, Record<string, number>>;
 
 const getImportMap = (sourceFiles: SourceFile[]) => {
   const filesImports: FilesImports = {};
-  for (const sourceFile of sourceFiles) {
-    const filePath = sourceFile.getFilePath();
-    const tsConfig = getTsConfig();
+  const tsConfig = getTsConfig();
 
-    if (tsConfig) {
+  const bar0 = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
+  bar0.start(sourceFiles.length - 1, 0);
+
+  if (tsConfig) {
+    sourceFiles.forEach((sourceFile, index) => {
+      const filePath = sourceFile.getFilePath();
+
       const imports = sourceFile.getImportStringLiterals();
       imports.forEach((literal) => {
         const importPosition = literal.getPos();
         const literalText = trimQuotes(literal.getText());
         const resolvedModule = ts.resolveModuleName(literalText, filePath, tsConfig.options, ts.sys);
         const resolvedFileName = resolvedModule.resolvedModule?.resolvedFileName;
-        if (resolvedFileName) {
+        if (resolvedFileName && !resolvedFileName.includes('node_modules')) {
           if (filesImports[resolvedFileName]) {
             filesImports[resolvedFileName] = {
               ...filesImports[resolvedFileName],
@@ -47,8 +52,11 @@ const getImportMap = (sourceFiles: SourceFile[]) => {
           }
         }
       });
-    }
+      bar0.update(index);
+    });
+    bar0.stop();
   }
+
   return filesImports;
 };
 
@@ -166,11 +174,7 @@ export const migrate = (config: Config) => {
   const sourceFiles = project.getSourceFiles(config.projectFiles);
 
   const fileImports = getImportMap(sourceFiles);
-  console.log('fileImports');
-  console.log(fileImports);
   const exportMap = migrateAndGetExportMap(sourceFiles);
-  console.log('exportMap');
-  console.log(exportMap);
 
   checkAndFixImport({
     project,
@@ -182,5 +186,5 @@ export const migrate = (config: Config) => {
 };
 
 // migrate({
-//   projectFiles: 'test/test-project/case2/*.{tsx,ts,js}',
+//   projectFiles: 'src/**/*.{tsx,ts,js}',
 // });

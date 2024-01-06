@@ -16,4 +16,4 @@ Issue on typescript which can help handle this: [Support find-all-references for
 ## TODO
 
 - [x] handle `module.exports.sum`  with `import { sum } from './sum';` will be transformed to `export const sum`
-- [ ] `module.exports = {` need to be transformed to `export const [fileName] = {`
+- [x] `module.exports = {` need to be transformed to `export const [fileName] = {`
