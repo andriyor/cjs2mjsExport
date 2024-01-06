@@ -1,7 +1,9 @@
-import { Project, Node, SyntaxKind, ts, SourceFile, CompilerOptions, StringLiteral } from 'ts-morph';
+import { Project, Node, SyntaxKind, SourceFile, StringLiteral } from 'ts-morph';
 import cliProgress from 'cli-progress';
 import { camelCase } from 'string-ts';
 import { typeFlag } from 'type-flag';
+
+import { getResolvedFileName, getTsConfig, trimQuotes } from './helpers';
 
 const parsed = typeFlag({
   projectFiles: {
@@ -9,8 +11,6 @@ const parsed = typeFlag({
     alias: 'f',
   },
 });
-
-import { getResolvedFileName, getTsConfig, trimQuotes } from './helpers';
 
 export const getFileName = (str: string) => {
   const index = str.lastIndexOf('.');
@@ -264,7 +264,7 @@ export const migrate = (config: Config) => {
 };
 
 if (parsed.flags.projectFiles) {
-  migrate({
+  void migrate({
     projectFiles: parsed.flags.projectFiles,
   });
 } else {
