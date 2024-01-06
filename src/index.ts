@@ -22,10 +22,10 @@ type Config = {
   projectFiles: string;
 };
 
-type FilesImports = Record<string, Record<string, number>>;
+type fileUsageMap = Record<string, Record<string, number>>;
 
-const getImportMap = (sourceFiles: SourceFile[]) => {
-  const filesImports: FilesImports = {};
+const getFileUsageMap = (sourceFiles: SourceFile[]) => {
+  const filesImports: fileUsageMap = {};
   const tsConfig = getTsConfig();
 
   const bar0 = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
@@ -60,16 +60,18 @@ const getImportMap = (sourceFiles: SourceFile[]) => {
   return filesImports;
 };
 
-type ExportMap = Record<string, string[]>;
+type fileExportNamesMap = Record<string, string[]>;
 
-const migrateAndGetExportMap = (sourceFiles: SourceFile[]) => {
-  const exportMap: ExportMap = {};
+const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
+  const exportMap: fileExportNamesMap = {};
   for (const sourceFile of sourceFiles) {
     const filePath = sourceFile.getFilePath();
+    console.log(filePath);
     const exportInFile: string[] = [];
 
     sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression).forEach((node) => {
       if (node.getFullText().trim() === 'module.exports') {
+        console.log(node.getFullText());
         const parent = node.getParent();
 
         // module.exports.sum = sum;
@@ -121,42 +123,46 @@ const migrateAndGetExportMap = (sourceFiles: SourceFile[]) => {
 
 const checkAndFixImport = ({
   project,
-  fileImports,
-  exportMap,
+  fileUsageMap,
+  fileExportNamesMap,
 }: {
   project: Project;
-  fileImports: FilesImports;
-  exportMap: ExportMap;
+  fileUsageMap: fileUsageMap;
+  fileExportNamesMap: fileExportNamesMap;
 }) => {
-  for (const fileImportKey in fileImports) {
-    for (const fileImportKeyElement in fileImports[fileImportKey]) {
-      const personFile = project.getSourceFile(fileImportKeyElement);
-      if (personFile) {
-        const node = personFile.getDescendantAtPos(fileImports[fileImportKey][fileImportKeyElement]);
-        if (node) {
-          const parent = node.getParent();
-          if (Node.isImportDeclaration(parent)) {
-            const importClause = parent.getImportClause();
-            if (importClause) {
-              const namedBindings = importClause.getNamedBindings();
+  for (const fileImportKey in fileUsageMap) {
+    if (fileExportNamesMap[fileImportKey]) {
+      for (const fileImportKeyElement in fileUsageMap[fileImportKey]) {
+        const personFile = project.getSourceFile(fileImportKeyElement);
+        if (personFile) {
+          const node = personFile.getDescendantAtPos(fileUsageMap[fileImportKey][fileImportKeyElement]);
+          if (node) {
+            const parent = node.getParent();
+            if (Node.isImportDeclaration(parent)) {
+              const importClause = parent.getImportClause();
+              if (importClause) {
+                const namedBindings = importClause.getNamedBindings();
 
-              // import { sum } from './sum';
-              if (Node.isNamedImports(namedBindings)) {
-                const namedImports = importClause.getNamedImports();
-                const namedImportsText = namedImports.map((namedImport) => namedImport.getText());
-                const isImportsIncluded = namedImportsText.every((importText) =>
-                  exportMap[fileImportKey].includes(importText),
-                );
-                if (isImportsIncluded) {
-                  console.log('all imports included');
+                // import { sum } from './sum';
+                if (Node.isNamedImports(namedBindings)) {
+                  const namedImports = importClause.getNamedImports();
+                  const namedImportsText = namedImports.map((namedImport) => namedImport.getText());
+                  const isImportsIncluded = namedImportsText.every((importText) =>
+                    fileExportNamesMap[fileImportKey].includes(importText),
+                  );
+                  if (isImportsIncluded) {
+                    console.log('all imports included');
+                  }
                 }
-              }
 
-              // import * as actions from './subscriptions';
-              if (Node.isNamespaceImport(namedBindings)) {
-                const aliasName = namedBindings.getName();
-                if (exportMap[fileImportKey].length === 1) {
-                  namedBindings.replaceWithText(`{${exportMap[fileImportKey][0]} as ${aliasName}}`);
+                // import * as actions from './subscriptions';
+                if (Node.isNamespaceImport(namedBindings)) {
+                  const aliasName = namedBindings.getName();
+                  console.log('fileImportKey');
+                  console.log(fileImportKey);
+                  if (fileExportNamesMap[fileImportKey] && fileExportNamesMap[fileImportKey].length === 1) {
+                    namedBindings.replaceWithText(`{${fileExportNamesMap[fileImportKey][0]} as ${aliasName}}`);
+                  }
                 }
               }
             }
@@ -171,15 +177,20 @@ export const migrate = (config: Config) => {
   const project = new Project({
     tsConfigFilePath: 'tsconfig.json',
   });
+  // project.emitSync();
   const sourceFiles = project.getSourceFiles(config.projectFiles);
 
-  const fileImports = getImportMap(sourceFiles);
-  const exportMap = migrateAndGetExportMap(sourceFiles);
+  const fileUsageMap = getFileUsageMap(sourceFiles);
+  console.log('fileUsageMap');
+  console.log(fileUsageMap);
+  const fileExportNamesMap = migrateAndGetFileExportNamesMap(sourceFiles);
+  console.log('fileExportNamesMap');
+  console.log(fileExportNamesMap);
 
   checkAndFixImport({
     project,
-    fileImports,
-    exportMap,
+    fileUsageMap,
+    fileExportNamesMap,
   });
 
   return project.save();
@@ -188,3 +199,7 @@ export const migrate = (config: Config) => {
 // migrate({
 //   projectFiles: 'src/**/*.{tsx,ts,js}',
 // });
+
+migrate({
+  projectFiles: 'test/test-project/case1/**/*.{tsx,ts,js}',
+});
