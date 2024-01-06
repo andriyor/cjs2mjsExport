@@ -13,10 +13,10 @@ type Config = {
   projectFiles: string;
 };
 
-type FileUsageMap = Record<string, Record<string, StringLiteral>>;
+type FileUsagesMap = Record<string, Record<string, StringLiteral>>;
 
 const getFileUsageMap = (sourceFiles: SourceFile[]) => {
-  const filesImports: FileUsageMap = {};
+  const fileUsages: FileUsagesMap = {};
   const tsConfig = getTsConfig();
 
   const bar0 = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
@@ -26,18 +26,18 @@ const getFileUsageMap = (sourceFiles: SourceFile[]) => {
     sourceFiles.forEach((sourceFile, index) => {
       const filePath = sourceFile.getFilePath();
 
-      const imports = sourceFile.getImportStringLiterals();
-      imports.forEach((literal) => {
-        const literalText = trimQuotes(literal.getText());
-        const resolvedFileName = getResolvedFileName(literalText, filePath, tsConfig.options);
-        if (resolvedFileName && !resolvedFileName.includes('node_modules')) {
-          if (filesImports[resolvedFileName]) {
-            filesImports[resolvedFileName] = {
-              ...filesImports[resolvedFileName],
-              [filePath]: literal,
+      const importStringLiterals = sourceFile.getImportStringLiterals();
+      importStringLiterals.forEach((importStringLiteral) => {
+        const literalText = trimQuotes(importStringLiteral.getText());
+        const importFilePath = getResolvedFileName(literalText, filePath, tsConfig.options);
+        if (importFilePath && !importFilePath.includes('node_modules')) {
+          if (fileUsages[importFilePath]) {
+            fileUsages[importFilePath] = {
+              ...fileUsages[importFilePath],
+              [filePath]: importStringLiteral,
             };
           } else {
-            filesImports[resolvedFileName] = { [filePath]: literal };
+            fileUsages[importFilePath] = { [filePath]: importStringLiteral };
           }
         }
       });
@@ -46,13 +46,13 @@ const getFileUsageMap = (sourceFiles: SourceFile[]) => {
     bar0.stop();
   }
 
-  return filesImports;
+  return fileUsages;
 };
 
 type FileExportNamesMap = Record<
   string,
   {
-    usage: string[];
+    exportedVarFromFile: string[];
     isDefaultExport: boolean;
   }
 >;
@@ -63,9 +63,9 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
     const filePath = sourceFile.getFilePath();
     exportMap[filePath] = {
       isDefaultExport: false,
-      usage: [],
+      exportedVarFromFile: [],
     };
-    const exportInFile: string[] = [];
+    const exportedVarFromFile: string[] = [];
 
     sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression).forEach((node) => {
       if (node.getFullText().trim() === 'module.exports') {
@@ -79,7 +79,7 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
             const right = parentOfProp.getRight();
             if (!Node.isFunctionExpression(right)) {
               const exportedName = parentOfProp.getRight().getFullText().trim();
-              exportInFile.push(exportedName);
+              exportedVarFromFile.push(exportedName);
               const parentOfBinaryExpr = parentOfProp.getParent();
               if (Node.isExpressionStatement(parentOfBinaryExpr)) {
                 return parentOfBinaryExpr.remove();
@@ -102,7 +102,7 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
                 // module.exports = {sum}
                 for (const property of properties) {
                   if (Node.isShorthandPropertyAssignment(property)) {
-                    exportInFile.push(property.getText());
+                    exportedVarFromFile.push(property.getText());
                     const referencedSymbols = property.findReferences();
 
                     for (const referencedSymbol of referencedSymbols) {
@@ -122,14 +122,14 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
                 const fileName = getFileName(sourceFile.getBaseName());
                 const camelCasedName = camelCase(fileName);
                 sourceFile.insertStatements(0, `export const ${camelCasedName} = ${extText}`);
-                exportInFile.push(camelCasedName);
+                exportedVarFromFile.push(camelCasedName);
                 return parentOfBinaryExpr.remove();
               }
             }
 
             // module.exports = sum;
             if (Node.isIdentifier(rightSide)) {
-              exportInFile.push(rightSide.getText());
+              exportedVarFromFile.push(rightSide.getText());
               const referencedSymbols = rightSide.findReferences();
 
               for (const referencedSymbol of referencedSymbols) {
@@ -147,13 +147,13 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
       }
     });
 
-    if (exportInFile.length) {
-      exportMap[filePath].usage = exportInFile;
+    if (exportedVarFromFile.length) {
+      exportMap[filePath].exportedVarFromFile = exportedVarFromFile;
     }
 
     sourceFile.forEachChild((node) => {
       if (Node.isVariableStatement(node)) {
-        exportInFile.forEach((exportName) => {
+        exportedVarFromFile.forEach((exportName) => {
           for (const declarations of node.getDeclarations()) {
             const varName = declarations.getName();
             if (exportName === varName) {
@@ -166,7 +166,7 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
   }
 
   return Object.keys(exportMap)
-    .filter((key) => Boolean(exportMap[key].usage.length))
+    .filter((key) => Boolean(exportMap[key].exportedVarFromFile.length))
     .reduce((cur, key) => {
       return Object.assign(cur, { [key]: exportMap[key] });
     }, {});
@@ -178,7 +178,7 @@ const checkAndFixImport = ({
   fileExportNamesMap,
 }: {
   project: Project;
-  fileUsageMap: FileUsageMap;
+  fileUsageMap: FileUsagesMap;
   fileExportNamesMap: FileExportNamesMap;
 }) => {
   for (const fileUsageMapKey in fileUsageMap) {
@@ -199,7 +199,7 @@ const checkAndFixImport = ({
                   const namedImports = importClause.getNamedImports();
                   const namedImportsText = namedImports.map((namedImport) => namedImport.getText());
                   const isImportsIncluded = namedImportsText.every((importText) =>
-                    fileExportNamesMap[fileUsageMapKey].usage.includes(importText),
+                    fileExportNamesMap[fileUsageMapKey].exportedVarFromFile.includes(importText),
                   );
                   if (isImportsIncluded) {
                     console.log('all imports included');
@@ -209,9 +209,12 @@ const checkAndFixImport = ({
                 // import * as actions from './subscriptions';
                 if (Node.isNamespaceImport(namedBindings)) {
                   const aliasName = namedBindings.getName();
-                  if (fileExportNamesMap[fileUsageMapKey] && fileExportNamesMap[fileUsageMapKey].usage.length === 1) {
+                  if (
+                    fileExportNamesMap[fileUsageMapKey] &&
+                    fileExportNamesMap[fileUsageMapKey].exportedVarFromFile.length === 1
+                  ) {
                     namedBindings.replaceWithText(
-                      `{ ${fileExportNamesMap[fileUsageMapKey].usage[0]} as ${aliasName} }`,
+                      `{ ${fileExportNamesMap[fileUsageMapKey].exportedVarFromFile[0]} as ${aliasName} }`,
                     );
                   }
                 }
@@ -221,7 +224,7 @@ const checkAndFixImport = ({
                   if (fileExportNamesMap[fileUsageMapKey]) {
                     const importName = importClause.getText();
                     if (fileExportNamesMap[fileUsageMapKey].isDefaultExport) {
-                      const exportedName = fileExportNamesMap[fileUsageMapKey].usage[0];
+                      const exportedName = fileExportNamesMap[fileUsageMapKey].exportedVarFromFile[0];
                       if (exportedName === importName) {
                         importClause.replaceWithText(`{ ${exportedName} }`);
                       } else {
