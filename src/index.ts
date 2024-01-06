@@ -228,6 +228,6 @@ export const migrate = (config: Config) => {
 //   projectFiles: 'src/**/*.{tsx,ts,js}',
 // });
 
-migrate({
-  projectFiles: 'test/test-project/case2/**/*.{tsx,ts,js}',
-});
+// migrate({
+//   projectFiles: 'test/test-project/case2/**/*.{tsx,ts,js}',
+// });
