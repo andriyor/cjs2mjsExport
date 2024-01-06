@@ -5,4 +5,3 @@ export const func1 = (a: number, b: number) => {
 export const func2 = (a: number, b: number) => {
   return a - b;
 };
-
