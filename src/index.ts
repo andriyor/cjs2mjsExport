@@ -1,4 +1,4 @@
-import { Project, Node, SyntaxKind, ts, SourceFile, CompilerOptions } from 'ts-morph';
+import { Project, Node, SyntaxKind, ts, SourceFile, CompilerOptions, StringLiteral } from 'ts-morph';
 import cliProgress from 'cli-progress';
 import { camelCase } from 'string-ts';
 import path from 'path';
@@ -36,7 +36,7 @@ type Config = {
   projectFiles: string;
 };
 
-type FileUsageMap = Record<string, Record<string, number>>;
+type FileUsageMap = Record<string, Record<string, StringLiteral>>;
 
 const getFileUsageMap = (sourceFiles: SourceFile[]) => {
   const filesImports: FileUsageMap = {};
@@ -51,17 +51,16 @@ const getFileUsageMap = (sourceFiles: SourceFile[]) => {
 
       const imports = sourceFile.getImportStringLiterals();
       imports.forEach((literal) => {
-        const importPosition = literal.getPos();
         const literalText = trimQuotes(literal.getText());
         const resolvedFileName = getResolvedFileName(literalText, filePath, tsConfig.options);
         if (resolvedFileName && !resolvedFileName.includes('node_modules')) {
           if (filesImports[resolvedFileName]) {
             filesImports[resolvedFileName] = {
               ...filesImports[resolvedFileName],
-              [filePath]: importPosition,
+              [filePath]: literal,
             };
           } else {
-            filesImports[resolvedFileName] = { [filePath]: importPosition };
+            filesImports[resolvedFileName] = { [filePath]: literal };
           }
         }
       });
@@ -84,8 +83,6 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
     if (['src/sagas/config/index.js'].some((path) => filePath.includes(path))) {
       continue;
     }
-
-    console.log(sourceFile.getFilePath());
 
     sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression).forEach((node) => {
       if (node.getFullText().trim() === 'module.exports') {
@@ -196,7 +193,7 @@ const checkAndFixImport = ({
       for (const fileImportKeyElement in fileUsageMap[fileUsageMapKey]) {
         const personFile = project.getSourceFile(fileImportKeyElement);
         if (personFile) {
-          const node = personFile.getDescendantAtPos(fileUsageMap[fileUsageMapKey][fileImportKeyElement]);
+          const node = fileUsageMap[fileUsageMapKey][fileImportKeyElement];
           if (node) {
             const parent = node.getParent();
             if (Node.isImportDeclaration(parent)) {
@@ -230,9 +227,9 @@ const checkAndFixImport = ({
                   if (fileExportNamesMap[fileUsageMapKey] && fileExportNamesMap[fileUsageMapKey].length === 1) {
                     const exportedName = fileExportNamesMap[fileUsageMapKey][0];
                     if (exportedName === importName) {
-                      importClause.replaceWithText(`{ ${fileExportNamesMap[fileUsageMapKey][0]} }`);
+                      importClause.replaceWithText(`{ ${exportedName} }`);
                     } else {
-                      importClause.replaceWithText(`{ ${fileExportNamesMap[fileUsageMapKey][0]} as ${importName} }`);
+                      importClause.replaceWithText(`{ ${exportedName} as ${importName} }`);
                     }
                   }
                 }
@@ -274,5 +271,5 @@ export const migrate = (config: Config) => {
 // });
 
 // migrate({
-//   projectFiles: 'test/test-project/case2/*.{tsx,ts,js}',
+//   projectFiles: 'test/test-project/case6MoreImports/*.{tsx,ts,js}',
 // });
