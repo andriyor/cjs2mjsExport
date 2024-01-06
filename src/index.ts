@@ -27,8 +27,9 @@ const getAllFilesUsagesMap = (sourceFiles: SourceFile[]) => {
   const fileUsages: FileUsagesMap = {};
   const tsConfig = getTsConfig();
 
-  const bar0 = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
-  bar0.start(sourceFiles.length - 1, 0);
+  console.log('Scan all files imports');
+  const bar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
+  bar.start(sourceFiles.length - 1, 0);
 
   if (tsConfig) {
     sourceFiles.forEach((sourceFile, index) => {
@@ -49,9 +50,9 @@ const getAllFilesUsagesMap = (sourceFiles: SourceFile[]) => {
           }
         }
       });
-      bar0.update(index);
+      bar.update(index);
     });
-    bar0.stop();
+    bar.stop();
   }
 
   return fileUsages;
@@ -67,7 +68,12 @@ type FileExportNamesMap = Record<
 
 const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
   const exportMap: FileExportNamesMap = {};
-  for (const sourceFile of sourceFiles) {
+
+  console.log('Change CJS export to ESM export');
+  const bar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
+  bar.start(sourceFiles.length - 1, 0);
+
+  sourceFiles.forEach((sourceFile, index) => {
     const filePath = sourceFile.getFilePath();
     exportMap[filePath] = {
       isFileUseDefaultExport: false,
@@ -169,8 +175,10 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
         }
       });
     });
-  }
+    bar.update(index);
+  });
 
+  bar.stop();
   // remove paths which doesn't have cjs export
   return Object.keys(exportMap)
     .filter((key) => Boolean(exportMap[key].exportedVarFromFile.length))
@@ -186,7 +194,12 @@ const fixFilesImports = ({
   allFilesUsagesMap: FileUsagesMap;
   fileCJSExportNamesMap: FileExportNamesMap;
 }) => {
-  for (const fileUsageMapKey in allFilesUsagesMap) {
+  const fileUsageMapKeys = Object.keys(allFilesUsagesMap);
+  console.log('Fix file imports');
+  const bar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
+  bar.start(fileUsageMapKeys.length - 1, 0);
+
+  fileUsageMapKeys.forEach((fileUsageMapKey, index) => {
     if (fileCJSExportNamesMap[fileUsageMapKey]) {
       for (const fileImportKeyElement in allFilesUsagesMap[fileUsageMapKey]) {
         const node = allFilesUsagesMap[fileUsageMapKey][fileImportKeyElement];
@@ -227,7 +240,9 @@ const fixFilesImports = ({
         }
       }
     }
-  }
+    bar.update(index);
+  });
+  bar.stop();
 };
 
 export const migrate = (config: Config) => {
