@@ -23,5 +23,5 @@ jobs:
         run: pnpm install
       - name: Run tests
         run: pnpm test
-      - name: Run tests
+      - name: Run lint
         run: pnpm lint
