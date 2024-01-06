@@ -162,7 +162,7 @@ const checkAndFixImport = ({
                   console.log('fileImportKey');
                   console.log(fileImportKey);
                   if (fileExportNamesMap[fileImportKey] && fileExportNamesMap[fileImportKey].length === 1) {
-                    namedBindings.replaceWithText(`{${fileExportNamesMap[fileImportKey][0]} as ${aliasName}}`);
+                    namedBindings.replaceWithText(`{ ${fileExportNamesMap[fileImportKey][0]} as ${aliasName} }`);
                   }
                 }
               }
