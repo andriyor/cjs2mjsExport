@@ -237,13 +237,17 @@ const checkAndFixImport = ({
 
                 // import subtract from './subtract';
                 if (namedBindings === undefined) {
-                  const importName = importClause.getText();
                   if (fileExportNamesMap[fileUsageMapKey] && fileExportNamesMap[fileUsageMapKey].usage.length === 1) {
-                    const exportedName = fileExportNamesMap[fileUsageMapKey].usage[0];
-                    if (exportedName === importName) {
-                      importClause.replaceWithText(`{ ${exportedName} }`);
+                    const importName = importClause.getText();
+                    if (fileExportNamesMap[fileUsageMapKey].isDefault) {
+                      const exportedName = fileExportNamesMap[fileUsageMapKey].usage[0];
+                      if (exportedName === importName) {
+                        importClause.replaceWithText(`{ ${exportedName} }`);
+                      } else {
+                        importClause.replaceWithText(`{ ${exportedName} as ${importName} }`);
+                      }
                     } else {
-                      importClause.replaceWithText(`{ ${exportedName} as ${importName} }`);
+                      importClause.replaceWithText(`* as ${importName}`);
                     }
                   }
                 }
@@ -285,5 +289,5 @@ export const migrate = (config: Config) => {
 // });
 
 // migrate({
-//   projectFiles: 'test/test-project/case6MoreImports/*.{tsx,ts,js}',
+//   projectFiles: 'test/test-project/case7/*.{tsx,ts,js}',
 // });
