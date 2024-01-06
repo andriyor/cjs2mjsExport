@@ -289,5 +289,5 @@ export const migrate = (config: Config) => {
 // });
 
 // migrate({
-//   projectFiles: 'test/test-project/case7/*.{tsx,ts,js}',
+//   projectFiles: 'test/test-project/case8/*.{tsx,ts,js}',
 // });
