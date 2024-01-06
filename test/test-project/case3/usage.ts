@@ -1,3 +1,3 @@
-import sum from './sum';
+import subtract from './subtract';
 
-console.log(sum(2, 8));
+console.log(subtract(2, 8));
