@@ -1,31 +1,8 @@
 import { Project, Node, SyntaxKind, ts, SourceFile, CompilerOptions, StringLiteral } from 'ts-morph';
 import cliProgress from 'cli-progress';
 import { camelCase } from 'string-ts';
-import path from 'path';
 
-const getTsConfig = () => {
-  const tsConfigFilePath = ts.findConfigFile(process.cwd(), ts.sys.fileExists);
-  if (tsConfigFilePath) {
-    const configFile = ts.readConfigFile(tsConfigFilePath, ts.sys.readFile);
-    return ts.parseJsonConfigFileContent(configFile.config, ts.sys, '');
-  }
-};
-
-const getResolvedFileName = (moduleName: string, containingFile: string, tsOptions: CompilerOptions) => {
-  const resolvedModuleName = ts.resolveModuleName(moduleName, containingFile, tsOptions, ts.sys);
-  if (resolvedModuleName.resolvedModule?.resolvedFileName) {
-    if (resolvedModuleName.resolvedModule.resolvedFileName.includes(process.cwd())) {
-      return resolvedModuleName.resolvedModule?.resolvedFileName;
-    } else {
-      // handle alias
-      return path.join(process.cwd(), resolvedModuleName.resolvedModule.resolvedFileName);
-    }
-  }
-};
-
-export const trimQuotes = (str: string) => {
-  return str.slice(1, -1);
-};
+import { getResolvedFileName, getTsConfig, trimQuotes } from './helpers';
 
 export const getFileName = (str: string) => {
   const index = str.lastIndexOf('.');
@@ -269,16 +246,11 @@ export const migrate = (config: Config) => {
   const project = new Project({
     tsConfigFilePath: 'tsconfig.json',
   });
-  // project.emitSync();
+
   const sourceFiles = project.getSourceFiles(config.projectFiles);
-  console.log(sourceFiles.map((file) => file.getFilePath()));
 
   const fileUsageMap = getFileUsageMap(sourceFiles);
-  console.log('fileUsageMap');
-  console.log(fileUsageMap);
   const fileExportNamesMap = migrateAndGetFileExportNamesMap(sourceFiles);
-  console.log('fileExportNamesMap');
-  console.log(fileExportNamesMap);
 
   checkAndFixImport({
     project,

@@ -20,3 +20,5 @@ Issue on typescript which can help handle this: [Support find-all-references for
 - [x] handle `module.exports = sum`  with `import sum from './sum';` will be transformed to `export const sum` and `import { sum } from './sum';`
 - [x] `module.exports = { name: 'name'}` need to be transformed to `export const [fileName] = {`
 - [x] `module.exports = {name}` need to be transformed to `export const name = 'name'`
+- [ ] handle `module.exports = {name: 'name'}` with `import { name } from './module';`
+

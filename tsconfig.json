@@ -1,5 +1,7 @@
 {
+  "exclude": ["coverage"],
   "compilerOptions": {
+    "outDir": "build",
     "target": "es2016",
     "module": "commonjs",
     "allowJs": true,
@@ -9,4 +11,3 @@
     "skipLibCheck": true
   }
 }
-
