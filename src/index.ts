@@ -72,12 +72,22 @@ const getFileUsageMap = (sourceFiles: SourceFile[]) => {
   return filesImports;
 };
 
-type FileExportNamesMap = Record<string, string[]>;
+type FileExportNamesMap = Record<
+  string,
+  {
+    usage: string[];
+    isDefault: boolean;
+  }
+>;
 
 const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
   const exportMap: FileExportNamesMap = {};
   for (const sourceFile of sourceFiles) {
     const filePath = sourceFile.getFilePath();
+    exportMap[filePath] = {
+      isDefault: false,
+      usage: [],
+    };
     const exportInFile: string[] = [];
 
     if (['src/sagas/config/index.js'].some((path) => filePath.includes(path))) {
@@ -90,6 +100,7 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
 
         // module.exports.sum = sum;
         if (Node.isPropertyAccessExpression(parent)) {
+          exportMap[filePath].isDefault = false;
           const parentOfProp = parent.getParent();
           if (Node.isBinaryExpression(parentOfProp)) {
             const exportedName = parentOfProp.getRight().getFullText().trim();
@@ -102,6 +113,7 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
         }
 
         if (Node.isBinaryExpression(parent)) {
+          exportMap[filePath].isDefault = true;
           const parentOfBinaryExpr = parent.getParent();
           if (Node.isExpressionStatement(parentOfBinaryExpr)) {
             const rightSide = parent.getRight();
@@ -160,7 +172,7 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
     });
 
     if (exportInFile.length) {
-      exportMap[filePath] = exportInFile;
+      exportMap[filePath].usage = exportInFile;
     }
 
     sourceFile.forEachDescendant((node) => {
@@ -206,7 +218,7 @@ const checkAndFixImport = ({
                   const namedImports = importClause.getNamedImports();
                   const namedImportsText = namedImports.map((namedImport) => namedImport.getText());
                   const isImportsIncluded = namedImportsText.every((importText) =>
-                    fileExportNamesMap[fileUsageMapKey].includes(importText),
+                    fileExportNamesMap[fileUsageMapKey].usage.includes(importText),
                   );
                   if (isImportsIncluded) {
                     console.log('all imports included');
@@ -216,16 +228,18 @@ const checkAndFixImport = ({
                 // import * as actions from './subscriptions';
                 if (Node.isNamespaceImport(namedBindings)) {
                   const aliasName = namedBindings.getName();
-                  if (fileExportNamesMap[fileUsageMapKey] && fileExportNamesMap[fileUsageMapKey].length === 1) {
-                    namedBindings.replaceWithText(`{ ${fileExportNamesMap[fileUsageMapKey][0]} as ${aliasName} }`);
+                  if (fileExportNamesMap[fileUsageMapKey] && fileExportNamesMap[fileUsageMapKey].usage.length === 1) {
+                    namedBindings.replaceWithText(
+                      `{ ${fileExportNamesMap[fileUsageMapKey].usage[0]} as ${aliasName} }`,
+                    );
                   }
                 }
 
                 // import subtract from './subtract';
                 if (namedBindings === undefined) {
                   const importName = importClause.getText();
-                  if (fileExportNamesMap[fileUsageMapKey] && fileExportNamesMap[fileUsageMapKey].length === 1) {
-                    const exportedName = fileExportNamesMap[fileUsageMapKey][0];
+                  if (fileExportNamesMap[fileUsageMapKey] && fileExportNamesMap[fileUsageMapKey].usage.length === 1) {
+                    const exportedName = fileExportNamesMap[fileUsageMapKey].usage[0];
                     if (exportedName === importName) {
                       importClause.replaceWithText(`{ ${exportedName} }`);
                     } else {
