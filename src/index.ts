@@ -1,6 +1,14 @@
 import { Project, Node, SyntaxKind, ts, SourceFile, CompilerOptions, StringLiteral } from 'ts-morph';
 import cliProgress from 'cli-progress';
 import { camelCase } from 'string-ts';
+import { typeFlag } from 'type-flag';
+
+const parsed = typeFlag({
+  projectFiles: {
+    type: String,
+    alias: 'f',
+  },
+});
 
 import { getResolvedFileName, getTsConfig, trimQuotes } from './helpers';
 
@@ -163,7 +171,7 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
     });
   }
 
-  // remove path which doesn't have cjs export
+  // remove paths which doesn't have cjs export
   return Object.keys(exportMap)
     .filter((key) => Boolean(exportMap[key].exportedVarFromFile.length))
     .reduce((cur, key) => {
@@ -171,7 +179,7 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
     }, {});
 };
 
-const checkAndFixImport = ({
+const fixFilesImports = ({
   allFilesUsagesMap,
   fileCJSExportNamesMap,
 }: {
@@ -232,7 +240,7 @@ export const migrate = (config: Config) => {
   const allFilesUsagesMap = getAllFilesUsagesMap(sourceFiles);
   const fileCJSExportNamesMap = migrateAndGetFileExportNamesMap(sourceFiles);
 
-  checkAndFixImport({
+  fixFilesImports({
     allFilesUsagesMap,
     fileCJSExportNamesMap,
   });
@@ -240,10 +248,10 @@ export const migrate = (config: Config) => {
   return project.save();
 };
 
-migrate({
-  projectFiles: 'src/**/*.{tsx,ts,js}',
-});
-
-// migrate({
-//   projectFiles: 'test/test-project/case9/*.{tsx,ts,js}',
-// });
+if (parsed.flags.projectFiles) {
+  migrate({
+    projectFiles: parsed.flags.projectFiles,
+  });
+} else {
+  console.log('provide --project-files option');
+}

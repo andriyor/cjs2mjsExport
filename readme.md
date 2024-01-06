@@ -22,4 +22,6 @@ Issue on typescript which can help handle this: [Support find-all-references for
 - [x] `module.exports = {name}` need to be transformed to `export const name = 'name'`
 - [ ] handle `module.exports = {name: 'name'}` with `import { name } from './module';`
 - [ ] handle `module.exports.sum = function sum(a, b) {`
+- [x] run as cli
+- [x] progress bar
 
