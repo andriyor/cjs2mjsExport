@@ -23,10 +23,10 @@ type Config = {
   projectFiles: string;
 };
 
-type fileUsageMap = Record<string, Record<string, number>>;
+type FileUsageMap = Record<string, Record<string, number>>;
 
 const getFileUsageMap = (sourceFiles: SourceFile[]) => {
-  const filesImports: fileUsageMap = {};
+  const filesImports: FileUsageMap = {};
   const tsConfig = getTsConfig();
 
   const bar0 = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
@@ -61,10 +61,10 @@ const getFileUsageMap = (sourceFiles: SourceFile[]) => {
   return filesImports;
 };
 
-type fileExportNamesMap = Record<string, string[]>;
+type FileExportNamesMap = Record<string, string[]>;
 
 const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
-  const exportMap: fileExportNamesMap = {};
+  const exportMap: FileExportNamesMap = {};
   for (const sourceFile of sourceFiles) {
     const filePath = sourceFile.getFilePath();
     const exportInFile: string[] = [];
@@ -127,7 +127,7 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
               const camelCasedName = camelCase(fileName);
               sourceFile.insertStatements(0, `export const ${camelCasedName} = ${extText}`);
               exportInFile.push(camelCasedName);
-              parentOfBinaryExpr.remove();
+              return parentOfBinaryExpr.remove();
             }
 
             // module.exports = sum;
@@ -176,8 +176,8 @@ const checkAndFixImport = ({
   fileExportNamesMap,
 }: {
   project: Project;
-  fileUsageMap: fileUsageMap;
-  fileExportNamesMap: fileExportNamesMap;
+  fileUsageMap: FileUsageMap;
+  fileExportNamesMap: FileExportNamesMap;
 }) => {
   for (const fileImportKey in fileUsageMap) {
     if (fileExportNamesMap[fileImportKey]) {
@@ -255,6 +255,6 @@ export const migrate = (config: Config) => {
 //   projectFiles: 'src/**/*.{tsx,ts,js}',
 // });
 
-// migrate({
-//   projectFiles: 'test/test-project/case3/*.{tsx,ts,js}',
-// });
+migrate({
+  projectFiles: 'test/test-project/case2/*.{tsx,ts,js}',
+});
