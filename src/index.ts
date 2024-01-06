@@ -175,7 +175,7 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
       exportMap[filePath].usage = exportInFile;
     }
 
-    sourceFile.forEachDescendant((node) => {
+    sourceFile.forEachChild((node) => {
       if (Node.isVariableStatement(node)) {
         exportInFile.forEach((exportName) => {
           for (const declarations of node.getDeclarations()) {
@@ -288,6 +288,6 @@ export const migrate = (config: Config) => {
 //   projectFiles: 'src/**/*.{tsx,ts,js}',
 // });
 
-// migrate({
-//   projectFiles: 'test/test-project/case8/*.{tsx,ts,js}',
-// });
+migrate({
+  projectFiles: 'test/test-project/case8/*.{tsx,ts,js}',
+});

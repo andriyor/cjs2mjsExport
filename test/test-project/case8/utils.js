@@ -1,9 +1,12 @@
-export const cardType = () => {
+const cardType = () => {
   return 'cardType';
 };
 
-export const isInterac = () => {
-  export var cardType = 'cardType';
+const isInterac = () => {
+  var cardType = 'cardType';
 
   return 'isInterac';
 };
+
+module.exports.isInterac = isInterac;
+module.exports.cardType = cardType;
