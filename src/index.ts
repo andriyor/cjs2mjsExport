@@ -188,7 +188,12 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
       }
     });
   }
-  return exportMap;
+
+  return Object.keys(exportMap)
+    .filter((key) => Boolean(exportMap[key].usage.length))
+    .reduce((cur, key) => {
+      return Object.assign(cur, { [key]: exportMap[key] });
+    }, {});
 };
 
 const checkAndFixImport = ({
@@ -237,7 +242,7 @@ const checkAndFixImport = ({
 
                 // import subtract from './subtract';
                 if (namedBindings === undefined) {
-                  if (fileExportNamesMap[fileUsageMapKey] && fileExportNamesMap[fileUsageMapKey].usage.length === 1) {
+                  if (fileExportNamesMap[fileUsageMapKey]) {
                     const importName = importClause.getText();
                     if (fileExportNamesMap[fileUsageMapKey].isDefault) {
                       const exportedName = fileExportNamesMap[fileUsageMapKey].usage[0];
@@ -288,6 +293,6 @@ export const migrate = (config: Config) => {
 //   projectFiles: 'src/**/*.{tsx,ts,js}',
 // });
 
-migrate({
-  projectFiles: 'test/test-project/case8/*.{tsx,ts,js}',
-});
+// migrate({
+//   projectFiles: 'test/test-project/case8/*.{tsx,ts,js}',
+// });
