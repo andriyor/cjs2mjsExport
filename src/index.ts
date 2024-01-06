@@ -140,6 +140,7 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
               const properties=  rightSide.getProperties()
               const isAllShorthand = properties.every(property => Node.isShorthandPropertyAssignment(property))
               if (isAllShorthand) {
+                // module.exports = {sum}
                 for (const property of properties) {
                   if (Node.isShorthandPropertyAssignment(property)) {
                     exportInFile.push(property.getText());
@@ -158,6 +159,7 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
                 }
                 return parentOfBinaryExpr.remove();
               } else {
+                // module.exports = {sum: 'some'}
                 const extText = rightSide.getFullText().trim();
                 const fileName = getFileName(sourceFile.getBaseName());
                 const camelCasedName = camelCase(fileName);
@@ -310,9 +312,9 @@ export const migrate = (config: Config) => {
   return project.save();
 };
 
-// migrate({
-//   projectFiles: 'src/**/*.{tsx,ts,js}',
-// });
+migrate({
+  projectFiles: 'src/**/*.{tsx,ts,js}',
+});
 
 // migrate({
 //   projectFiles: 'test/test-project/case4shorthand/*.{tsx,ts,js}',
