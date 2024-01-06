@@ -1,12 +1,29 @@
-import { Project, Node, SyntaxKind, ts, SourceFile } from 'ts-morph';
+import { Project, Node, SyntaxKind, ts, SourceFile, CompilerOptions } from 'ts-morph';
 import cliProgress from 'cli-progress';
 import { camelCase } from 'string-ts';
+import path from 'path';
 
 const getTsConfig = () => {
   const tsConfigFilePath = ts.findConfigFile(process.cwd(), ts.sys.fileExists);
   if (tsConfigFilePath) {
     const configFile = ts.readConfigFile(tsConfigFilePath, ts.sys.readFile);
     return ts.parseJsonConfigFileContent(configFile.config, ts.sys, '');
+  }
+};
+
+const getResolvedFileName = (
+  moduleName: string,
+  containingFile: string,
+  tsOptions: CompilerOptions
+) => {
+  const resolvedModuleName = ts.resolveModuleName(moduleName, containingFile, tsOptions, ts.sys);
+  if (resolvedModuleName.resolvedModule?.resolvedFileName) {
+    if (resolvedModuleName.resolvedModule.resolvedFileName.includes(process.cwd())) {
+      return resolvedModuleName.resolvedModule?.resolvedFileName;
+    } else {
+      // handle alias
+      return path.join(process.cwd(), resolvedModuleName.resolvedModule.resolvedFileName);
+    }
   }
 };
 
@@ -40,8 +57,7 @@ const getFileUsageMap = (sourceFiles: SourceFile[]) => {
       imports.forEach((literal) => {
         const importPosition = literal.getPos();
         const literalText = trimQuotes(literal.getText());
-        const resolvedModule = ts.resolveModuleName(literalText, filePath, tsConfig.options, ts.sys);
-        const resolvedFileName = resolvedModule.resolvedModule?.resolvedFileName;
+        const resolvedFileName = getResolvedFileName(literalText, filePath, tsConfig.options);
         if (resolvedFileName && !resolvedFileName.includes('node_modules')) {
           if (filesImports[resolvedFileName]) {
             filesImports[resolvedFileName] = {
@@ -98,7 +114,6 @@ const migrateAndGetFileExportNamesMap = (sourceFiles: SourceFile[]) => {
 
     sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression).forEach((node) => {
       if (node.getFullText().trim() === 'module.exports') {
-        console.log(node.getFullText());
         const parent = node.getParent();
 
         // module.exports.sum = sum;
@@ -251,10 +266,10 @@ export const migrate = (config: Config) => {
   return project.save();
 };
 
-// migrate({
-//   projectFiles: 'src/**/*.{tsx,ts,js}',
-// });
-
 migrate({
-  projectFiles: 'test/test-project/case2/*.{tsx,ts,js}',
+  projectFiles: 'src/**/*.{tsx,ts,js}',
 });
+
+// migrate({
+//   projectFiles: 'test/test-project/case2/*.{tsx,ts,js}',
+// });
